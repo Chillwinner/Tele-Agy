@@ -14,6 +14,7 @@ from ..core.database import (
     update_user_state,
     create_or_update_conversation,
     list_conversations,
+    count_conversations,
     get_conversation,
 )
 from ..engine.discovery import scan_and_sync_local_conversations
@@ -47,7 +48,7 @@ async def handle_cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     create_or_update_conversation(new_conv_id, user_id, workspace, title="新任务会话")
     update_user_state(user_id, active_conversation_id=new_conv_id)
 
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         f"✨ **已创建全新会话！**\n\n"
         f"🆔 会话 ID: `{new_conv_id}`\n"
         f"📁 工作区目录: `{workspace}`\n\n"
@@ -56,8 +57,50 @@ async def handle_cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
 
+PAGE_SIZE = 8
+
+
+def render_conv_list_text(
+    convs: list,
+    active_id: str,
+    page: int,
+    total_pages: int,
+    total_count: int
+) -> str:
+    """构建历史会话列表的排版文本。"""
+    text = f"📂 **历史会话列表 (共 {total_count} 个，第 {page}/{total_pages} 页)**:\n\n"
+    start_num = (page - 1) * PAGE_SIZE + 1
+    for idx, c in enumerate(convs, start=start_num):
+        cid = c["conversation_id"]
+        title = c["title"] or "未命名会话"
+        is_active = (cid == active_id)
+        mark = "👉 " if is_active else "• "
+        active_tag = " `[当前活跃]`" if is_active else ""
+        text += f"{mark}**{idx}. 💬 {title}**{active_tag}\n   📁 工作区: `{c['workspace_path']}`\n\n"
+    return text
+
+
+def render_conv_list_plain_text(
+    convs: list,
+    active_id: str,
+    page: int,
+    total_pages: int,
+    total_count: int
+) -> str:
+    """构建纯文本降级格式的历史会话列表排版文本。"""
+    plain_text = f"📂 历史会话列表 (共 {total_count} 个，第 {page}/{total_pages} 页):\n\n"
+    start_num = (page - 1) * PAGE_SIZE + 1
+    for idx, c in enumerate(convs, start=start_num):
+        title = c["title"] or "未命名会话"
+        is_active = (c["conversation_id"] == active_id)
+        mark = "👉 " if is_active else "• "
+        active_tag = " [当前活跃]" if is_active else ""
+        plain_text += f"{mark}{idx}. 💬 {title}{active_tag}\n   📁 工作区: {c['workspace_path']}\n\n"
+    return plain_text
+
+
 async def handle_cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """处理 /list 指令：列出最近历史对话并提供切换按钮。
+    """处理 /list 指令：列出最近历史对话并提供切换按钮及翻页支持。
 
     Args:
         update: Telegram Update 对象。
@@ -71,41 +114,59 @@ async def handle_cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # 自动扫描并同步本机已有的历史会话
     scan_and_sync_local_conversations(user_id)
 
-    convs = list_conversations(user_id, limit=10)
+    total_count = count_conversations(user_id)
     state = get_user_state(user_id)
     active_id = state["active_conversation_id"]
 
-    if not convs:
-        await update.message.reply_text("📂 目前还没有历史会话，输入 `/new` 开始第一个对话！")
+    if total_count == 0:
+        await update.effective_message.reply_text("📂 目前还没有历史会话，输入 `/new` 开始第一个对话！")
         return
 
-    text = "📂 **历史会话列表 (点击下方按钮一键切换)**:\n\n"
-    for idx, c in enumerate(convs, 1):
-        cid = c["conversation_id"]
-        title = c["title"] or "未命名会话"
-        is_active = (cid == active_id)
-        mark = "👉 " if is_active else "• "
-        active_tag = " `[当前活跃]`" if is_active else ""
-        text += f"{mark}**{idx}. 💬 {title}**{active_tag}\n   📁 工作区: `{c['workspace_path']}`\n\n"
+    page = 1
+    total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
+    convs = list_conversations(user_id, limit=PAGE_SIZE, offset=0)
+
+    text = render_conv_list_text(convs, active_id, page, total_pages, total_count)
+    reply_markup = get_conversations_keyboard(convs, active_id, page=page, total_pages=total_pages)
+
+    target_msg = update.effective_message
+    try:
+        await target_msg.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+    except Exception:
+        plain_text = render_conv_list_plain_text(convs, active_id, page, total_pages, total_count)
+        await target_msg.reply_text(plain_text, reply_markup=reply_markup)
+
+
+async def handle_conv_page_callback(query: CallbackQuery, page_str: str) -> None:
+    """处理会话列表翻页回调。
+
+    Args:
+        query: Telegram CallbackQuery 对象。
+        page_str: 目标页码字符串。
+    """
+    user_id = query.from_user.id
+    try:
+        page = int(page_str)
+    except ValueError:
+        page = 1
+
+    total_count = count_conversations(user_id)
+    total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
+    page = max(1, min(page, total_pages))
+
+    offset = (page - 1) * PAGE_SIZE
+    convs = list_conversations(user_id, limit=PAGE_SIZE, offset=offset)
+    state = get_user_state(user_id)
+    active_id = state["active_conversation_id"]
+
+    text = render_conv_list_text(convs, active_id, page, total_pages, total_count)
+    reply_markup = get_conversations_keyboard(convs, active_id, page=page, total_pages=total_pages)
 
     try:
-        await update.message.reply_text(
-            text,
-            parse_mode="Markdown",
-            reply_markup=get_conversations_keyboard(convs, active_id)
-        )
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
     except Exception:
-        plain_text = "📂 历史会话列表 (点击下方按钮一键切换):\n\n"
-        for idx, c in enumerate(convs, 1):
-            title = c["title"] or "未命名会话"
-            is_active = (c["conversation_id"] == active_id)
-            mark = "👉 " if is_active else "• "
-            active_tag = " [当前活跃]" if is_active else ""
-            plain_text += f"{mark}{idx}. 💬 {title}{active_tag}\n   📁 工作区: {c['workspace_path']}\n\n"
-        await update.message.reply_text(
-            plain_text,
-            reply_markup=get_conversations_keyboard(convs, active_id)
-        )
+        plain_text = render_conv_list_plain_text(convs, active_id, page, total_pages, total_count)
+        await query.edit_message_text(plain_text, reply_markup=reply_markup)
 
 
 async def handle_cmd_cd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -170,7 +231,7 @@ async def handle_cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         f"🛡️ **安全策略**: `{state['policy']}`\n"
     )
     reply_markup = get_cancel_task_keyboard() if is_running else get_power_keyboard(state["power_state"] == "on")
-    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+    await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def handle_conv_switch_callback(query: CallbackQuery, conv_id: str) -> None:

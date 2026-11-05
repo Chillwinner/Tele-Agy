@@ -104,23 +104,48 @@ def get_policy_keyboard(current_policy: str) -> InlineKeyboardMarkup:
     ])
 
 
-def get_conversations_keyboard(convs: List[Dict[str, Any]], active_id: str) -> InlineKeyboardMarkup:
-    """生成历史会话切换列表键盘。
+def get_conversations_keyboard(
+    convs: List[Dict[str, Any]],
+    active_id: str,
+    page: int = 1,
+    total_pages: int = 1
+) -> InlineKeyboardMarkup:
+    """生成历史会话切换列表键盘（带分页按钮）。
 
     Args:
-        convs: 历史会话列表数据。
+        convs: 当前页历史会话列表数据。
         active_id: 当前处于活跃状态的会话 ID。
+        page: 当前页码（从 1 开始）。
+        total_pages: 总页数。
 
     Returns:
-        InlineKeyboardMarkup: 包含每个会话切换入口的按键布局。
+        InlineKeyboardMarkup: 包含每个会话切换入口及上一页/下一页按键的布局。
     """
     keyboard: List[List[InlineKeyboardButton]] = []
-    for idx, c in enumerate(convs, 1):
+    start_idx = (page - 1) * len(convs) + 1 if convs else 1
+    for idx, c in enumerate(convs, start=1):
         cid = c["conversation_id"]
         title = c["title"] or "未命名会话"
         is_active = (cid == active_id)
         btn_label = f"{'✅ 当前: ' if is_active else f'{idx}. '}{title[:22]}"
         keyboard.append([InlineKeyboardButton(btn_label, callback_data=f"conv_switch:{cid}")])
+
+    # 分页控制按键行
+    if total_pages > 1:
+        nav_row: List[InlineKeyboardButton] = []
+        if page > 1:
+            nav_row.append(InlineKeyboardButton("⬅️ 上一页", callback_data=f"conv_page:{page - 1}"))
+        nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop"))
+        if page < total_pages:
+            nav_row.append(InlineKeyboardButton("下一页 ➡️", callback_data=f"conv_page:{page + 1}"))
+        keyboard.append(nav_row)
+
+    # 快捷功能行
+    keyboard.append([
+        InlineKeyboardButton("✨ 新建会话", callback_data="new_conv"),
+        InlineKeyboardButton("🔙 返回面板", callback_data="show_status")
+    ])
+
     return InlineKeyboardMarkup(keyboard)
 
 

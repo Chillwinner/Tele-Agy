@@ -17,7 +17,13 @@ from .settings import (
     handle_cmd_model,
     handle_cmd_policy,
 )
-from .session import handle_conv_switch_callback, handle_cmd_list, handle_cmd_status
+from .session import (
+    handle_conv_switch_callback,
+    handle_conv_page_callback,
+    handle_cmd_list,
+    handle_cmd_status,
+    handle_cmd_new,
+)
 from .chat import handle_task_cancel_callback, handle_ask_answer_callback
 
 
@@ -67,11 +73,15 @@ async def handle_callback_router(update: Update, context: ContextTypes.DEFAULT_T
     elif data == "show_policy":
         await handle_cmd_policy(update, context)
 
-    # 6. 会话切换
+    # 6. 会话管理与分页
     elif data.startswith("conv_switch:"):
         await handle_conv_switch_callback(query, data.split(":", 1)[1])
+    elif data.startswith("conv_page:"):
+        await handle_conv_page_callback(query, data.split(":", 1)[1])
     elif data == "list_convs":
         await handle_cmd_list(update, context)
+    elif data == "new_conv":
+        await handle_cmd_new(update, context)
 
     # 7. 问答决策回答
     elif data.startswith("ask_ans:"):
@@ -80,3 +90,7 @@ async def handle_callback_router(update: Update, context: ContextTypes.DEFAULT_T
     # 8. 状态面板
     elif data == "show_status":
         await handle_cmd_status(update, context)
+
+    # 9. 无操作占位按钮（如页码显示）
+    elif data == "noop":
+        pass

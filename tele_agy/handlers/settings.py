@@ -31,7 +31,7 @@ async def handle_cmd_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         f"• **Plan (规划模式)**: 仅深度分析代码，产出方案与排期，不改动文件。\n"
         f"• **Build (构建模式)**: 完整执行代码修改、跑测试、自主解决问题。"
     )
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         text,
         parse_mode="Markdown",
         reply_markup=get_mode_keyboard(cur)
@@ -57,7 +57,7 @@ async def handle_cmd_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         f"🧠 **模型与思考深度选择**\n\n"
         f"当前模型: `{cur_m}` | 当前 Effort: `{cur_e}`"
     )
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         text,
         parse_mode="Markdown",
         reply_markup=get_model_keyboard(cur_m, cur_e)
@@ -85,7 +85,7 @@ async def handle_cmd_policy(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         f"• **沙箱 (Sandbox)**: 限制宿主机访问与敏感调用。\n"
         f"• **严格审批 (Review)**: 敏感命令会在手机上弹窗审批确认。"
     )
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         text,
         parse_mode="Markdown",
         reply_markup=get_policy_keyboard(cur)

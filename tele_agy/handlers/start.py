@@ -44,7 +44,7 @@ async def handle_cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "• `/stop` - 紧急停止当前任务\n\n"
         "直接在聊天框发送你的需求，Agent 将立即执行！"
     )
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         welcome_text,
         parse_mode="Markdown",
         reply_markup=get_start_keyboard()

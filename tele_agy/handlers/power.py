@@ -30,7 +30,7 @@ async def handle_cmd_power(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         f"当前运行状态: **{'🟢 运行中 (READY)' if is_on else '🔴 已休眠 (OFF)'}**\n\n"
         f"{'开启状态下：接收指令并正常执行任务。' if is_on else '关闭状态下：后台进程已强杀，拦截一切指令，零资源占用。'}"
     )
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         text,
         parse_mode="Markdown",
         reply_markup=get_power_keyboard(is_on)

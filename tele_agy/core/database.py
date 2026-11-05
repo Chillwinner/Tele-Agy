@@ -147,12 +147,13 @@ def create_or_update_conversation(
     conn.close()
 
 
-def list_conversations(user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
-    """按更新时间降序获取用户的历史会话列表。
+def list_conversations(user_id: int, limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
+    """按更新时间降序获取用户的历史会话列表（支持分页）。
 
     Args:
         user_id: 所属 Telegram 用户 ID。
         limit: 最大返回数量（默认 10）。
+        offset: 偏移量（默认 0）。
 
     Returns:
         List[Dict[str, Any]]: 会话记录字典列表。
@@ -160,13 +161,30 @@ def list_conversations(user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT * FROM conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?",
-        (user_id, limit)
+        "SELECT * FROM conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+        (user_id, limit, offset)
     )
     rows = cursor.fetchall()
     res = [dict(r) for r in rows]
     conn.close()
     return res
+
+
+def count_conversations(user_id: int) -> int:
+    """统计用户的历史会话总数。
+
+    Args:
+        user_id: 所属 Telegram 用户 ID。
+
+    Returns:
+        int: 会话总数。
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM conversations WHERE user_id = ?", (user_id,))
+    total = cursor.fetchone()[0]
+    conn.close()
+    return int(total)
 
 
 def get_conversation(conversation_id: str) -> Optional[Dict[str, Any]]:
