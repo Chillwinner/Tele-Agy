@@ -23,34 +23,39 @@ from .handlers.callbacks import handle_callback_router
 def setup_bot_handlers(application: Application) -> None:
     """向 Telegram Application 注册所有命令、消息与回调路由。
 
+    采用带并发支持的独立路由编排（block=False），实现类似 BMC/IPMI 的独立带外管理架构，
+    确保后台长任务或 agy 进程执行时，控制面指令（/list, /status, /stop, 按钮等）绝对不会被排队卡死。
+
     Args:
         application: 已初始化的 Telegram Application 实例。
     """
-    # 基础与导航
-    application.add_handler(CommandHandler("start", handle_cmd_start))
-    application.add_handler(CommandHandler("help", handle_cmd_start))
+    # 基础与导航（独立带外通道）
+    application.add_handler(CommandHandler("start", handle_cmd_start, block=False))
+    application.add_handler(CommandHandler("help", handle_cmd_start, block=False))
 
-    # 电源总开关
-    application.add_handler(CommandHandler("power", handle_cmd_power))
-    application.add_handler(CommandHandler("on", handle_cmd_on))
-    application.add_handler(CommandHandler("off", handle_cmd_off))
+    # 电源总开关（硬切断带外通道）
+    application.add_handler(CommandHandler("power", handle_cmd_power, block=False))
+    application.add_handler(CommandHandler("on", handle_cmd_on, block=False))
+    application.add_handler(CommandHandler("off", handle_cmd_off, block=False))
 
-    # 模式、模型与安全策略
-    application.add_handler(CommandHandler("mode", handle_cmd_mode))
-    application.add_handler(CommandHandler("model", handle_cmd_model))
-    application.add_handler(CommandHandler("policy", handle_cmd_policy))
+    # 模式、模型与安全策略配置
+    application.add_handler(CommandHandler("mode", handle_cmd_mode, block=False))
+    application.add_handler(CommandHandler("model", handle_cmd_model, block=False))
+    application.add_handler(CommandHandler("policy", handle_cmd_policy, block=False))
 
-    # 会话与工作区管理
-    application.add_handler(CommandHandler("new", handle_cmd_new))
-    application.add_handler(CommandHandler("list", handle_cmd_list))
-    application.add_handler(CommandHandler("cd", handle_cmd_cd))
-    application.add_handler(CommandHandler("status", handle_cmd_status))
+    # 会话与工作区管理（高优先级独立路由，绝对不被工作负载卡死）
+    application.add_handler(CommandHandler("new", handle_cmd_new, block=False))
+    application.add_handler(CommandHandler("list", handle_cmd_list, block=False))
+    application.add_handler(CommandHandler("cd", handle_cmd_cd, block=False))
+    application.add_handler(CommandHandler("status", handle_cmd_status, block=False))
 
     # 扩展能力查询
-    application.add_handler(CommandHandler("mcp", handle_cmd_mcp))
-    application.add_handler(CommandHandler("skills", handle_cmd_skills))
+    application.add_handler(CommandHandler("mcp", handle_cmd_mcp, block=False))
+    application.add_handler(CommandHandler("skills", handle_cmd_skills, block=False))
 
-    # 任务控制与核心对话
-    application.add_handler(CommandHandler("stop", handle_cmd_stop))
-    application.add_handler(CallbackQueryHandler(handle_callback_router))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_chat_message))
+    # 紧急打断指令（最高优先级独立响应）
+    application.add_handler(CommandHandler("stop", handle_cmd_stop, block=False))
+    application.add_handler(CallbackQueryHandler(handle_callback_router, block=False))
+
+    # 业务工作负载对话消息
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_chat_message, block=False))

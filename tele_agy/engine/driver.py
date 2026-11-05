@@ -110,15 +110,18 @@ class AgyDriver:
     def _wrap_prompt_with_system_guidance(self, prompt: str) -> str:
         """静默包裹系统级环境感知上下文（对用户完全透明）。
 
-        若用户的需求涉及后台定时任务（schedule/cron/定时巡检/延时通知），
-        自动注入主动回调通道说明，使 Agent 到期后自发向 Telegram 发起推送。
+        强化调度约束：当涉及定时任务或延时提醒时，严禁使用前台阻塞等待（禁止 shell sleep / 倒计时 blocking），
+        要求必须使用 schedule 工具派发非阻塞后台任务并立即向用户回复确认。
         """
         system_guidance = (
             "\n\n[System Context: You are running within tele-agy headless remote control environment. "
-            "If this task involves setting up or executing background timers/recurring schedules (via schedule/cron/manage_task), "
-            "when the scheduled timer or condition triggers to report results to the user, you MUST deliver your notification "
-            "by issuing an HTTP POST to: http://127.0.0.1:8080/api/notify with JSON body: {\"text\": \"...your report message...\"} "
-            "(e.g. using curl or python) so that it directly delivers to the user's Telegram!]"
+            "STRICT RULES FOR SCHEDULED / DELAYED TASKS: "
+            "1. NEVER use blocking shell `sleep` or wait loops. "
+            "2. When setting up a timer or recurring check, dispatch it using `schedule` (with IsDaemon: true if recurring) "
+            "and IMMEDIATELY reply to the user confirming the task has been scheduled. DO NOT keep this turn waiting! "
+            "3. When the scheduled task fires and produces results to notify the user, deliver the message by issuing an "
+            "HTTP POST to: http://127.0.0.1:8080/api/notify with JSON body: {\"text\": \"...your report message...\"} "
+            "so it directly delivers to the user's Telegram!]"
         )
         return prompt + system_guidance
 

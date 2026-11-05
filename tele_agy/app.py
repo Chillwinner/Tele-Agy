@@ -42,13 +42,28 @@ async def lifespan(app: FastAPI):
         return
 
     logger.info("Starting Telegram Bot application...")
-    telegram_app = ApplicationBuilder().token(config.TELEGRAM_BOT_TOKEN).build()
+    # 配置显式超时与连接池重试，防止网络长轮询死锁假死
+    telegram_app = (
+        ApplicationBuilder()
+        .token(config.TELEGRAM_BOT_TOKEN)
+        .connect_timeout(15.0)
+        .read_timeout(20.0)
+        .write_timeout(15.0)
+        .pool_timeout(10.0)
+        .build()
+    )
     setup_bot_handlers(telegram_app)
 
     await telegram_app.initialize()
     await telegram_app.start()
-    await telegram_app.updater.start_polling(drop_pending_updates=True)
-    logger.info("Telegram Bot Long Polling is active!")
+    # poll_interval 设置 0.5s，read_timeout 20s，超时自动循环拉取杜绝死锁
+    await telegram_app.updater.start_polling(
+        drop_pending_updates=True,
+        poll_interval=0.5,
+        timeout=15,
+        bootstrap_retries=-1
+    )
+    logger.info("Telegram Bot Long Polling is active with resilient timeouts!")
 
     yield
 
