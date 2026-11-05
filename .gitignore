@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+.DS_Store
+
+# SQLite
+tele_agy.db
+*.db-journal
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Explicitly keep example template
+!.env.example
