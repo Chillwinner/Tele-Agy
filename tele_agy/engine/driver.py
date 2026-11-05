@@ -107,6 +107,21 @@ class AgyDriver:
 
         return cmd
 
+    def _wrap_prompt_with_system_guidance(self, prompt: str) -> str:
+        """静默包裹系统级环境感知上下文（对用户完全透明）。
+
+        若用户的需求涉及后台定时任务（schedule/cron/定时巡检/延时通知），
+        自动注入主动回调通道说明，使 Agent 到期后自发向 Telegram 发起推送。
+        """
+        system_guidance = (
+            "\n\n[System Context: You are running within tele-agy headless remote control environment. "
+            "If this task involves setting up or executing background timers/recurring schedules (via schedule/cron/manage_task), "
+            "when the scheduled timer or condition triggers to report results to the user, you MUST deliver your notification "
+            "by issuing an HTTP POST to: http://127.0.0.1:8080/api/notify with JSON body: {\"text\": \"...your report message...\"} "
+            "(e.g. using curl or python) so that it directly delivers to the user's Telegram!]"
+        )
+        return prompt + system_guidance
+
     async def run(
         self,
         prompt: str,
@@ -147,11 +162,12 @@ class AgyDriver:
             on_text(f"无法启动 agy 进程: {e}")
             return -1
 
-        # 正确按照 stream-json 协议规范构造输入事件
+        # 正确按照 stream-json 协议规范构造输入事件（静默装配系统通道指引，用户端完全透明）
+        wrapped_prompt = self._wrap_prompt_with_system_guidance(prompt)
         input_payload = json.dumps({
             "event": "user",
             "message": {
-                "content": prompt
+                "content": wrapped_prompt
             }
         }) + "\n"
 

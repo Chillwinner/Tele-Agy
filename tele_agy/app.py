@@ -5,8 +5,9 @@
 
 import logging
 from typing import Dict, Any, Optional
+from pydantic import BaseModel
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from telegram.ext import ApplicationBuilder, Application
 
 from .core.config import config
@@ -80,6 +81,49 @@ async def root() -> Dict[str, Any]:
         "bot_active": bool(telegram_app and telegram_app.updater and telegram_app.updater.running),
         "allowed_users_count": len(config.ALLOWED_USER_IDS)
     }
+
+
+class NotifyPayload(BaseModel):
+    """主动推送给 Telegram 用户的请求结构体。"""
+    text: str
+    user_id: Optional[int] = None
+    parse_mode: Optional[str] = "Markdown"
+
+
+@app.post("/api/notify")
+async def notify_telegram(payload: NotifyPayload) -> Dict[str, Any]:
+    """系统级主动推送接口。
+
+    供后台定时任务（schedule）或外部监控脚本唤醒时向授权用户 Telegram 自动推送通知。
+    """
+    if not telegram_app or not telegram_app.bot:
+        raise HTTPException(status_code=503, detail="Telegram bot is not active")
+
+    target_user_id = payload.user_id
+    if not target_user_id:
+        if config.ALLOWED_USER_IDS:
+            target_user_id = config.ALLOWED_USER_IDS[0]
+        else:
+            raise HTTPException(status_code=400, detail="No allowed target user configured")
+
+    try:
+        await telegram_app.bot.send_message(
+            chat_id=target_user_id,
+            text=payload.text,
+            parse_mode=payload.parse_mode
+        )
+    except Exception as e:
+        # 降级纯文本重试
+        try:
+            await telegram_app.bot.send_message(
+                chat_id=target_user_id,
+                text=payload.text
+            )
+        except Exception as e2:
+            logger.error(f"Failed to send Telegram notification: {e2}")
+            raise HTTPException(status_code=500, detail=str(e2))
+
+    return {"status": "success", "user_id": target_user_id}
 
 
 @app.get("/health")
