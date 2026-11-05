@@ -16,6 +16,7 @@ from ..core.database import (
     list_conversations,
     get_conversation,
 )
+from ..engine.discovery import scan_and_sync_local_conversations
 from ..presentation.keyboards import get_conversations_keyboard, get_cancel_task_keyboard, get_power_keyboard
 from .base import require_auth, active_drivers
 
@@ -66,7 +67,11 @@ async def handle_cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     user_id = update.effective_user.id
-    convs = list_conversations(user_id, limit=8)
+
+    # 自动扫描并同步本机已有的历史会话
+    scan_and_sync_local_conversations(user_id)
+
+    convs = list_conversations(user_id, limit=10)
     state = get_user_state(user_id)
     active_id = state["active_conversation_id"]
 
@@ -74,19 +79,33 @@ async def handle_cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("📂 目前还没有历史会话，输入 `/new` 开始第一个对话！")
         return
 
-    text = "📂 **历史会话列表 (点击按钮快速切换)**:\n\n"
-    for c in convs:
+    text = "📂 **历史会话列表 (点击下方按钮一键切换)**:\n\n"
+    for idx, c in enumerate(convs, 1):
         cid = c["conversation_id"]
-        title = c["title"] or f"会话 {cid[:8]}"
+        title = c["title"] or "未命名会话"
         is_active = (cid == active_id)
-        mark = "👉 " if is_active else ""
-        text += f"{mark}• **{title}**\n  📁 `{c['workspace_path']}`\n  🆔 `{cid[:12]}...`\n\n"
+        mark = "👉 " if is_active else "• "
+        active_tag = " `[当前活跃]`" if is_active else ""
+        text += f"{mark}**{idx}. 💬 {title}**{active_tag}\n   📁 工作区: `{c['workspace_path']}`\n\n"
 
-    await update.message.reply_text(
-        text,
-        parse_mode="Markdown",
-        reply_markup=get_conversations_keyboard(convs, active_id)
-    )
+    try:
+        await update.message.reply_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=get_conversations_keyboard(convs, active_id)
+        )
+    except Exception:
+        plain_text = "📂 历史会话列表 (点击下方按钮一键切换):\n\n"
+        for idx, c in enumerate(convs, 1):
+            title = c["title"] or "未命名会话"
+            is_active = (c["conversation_id"] == active_id)
+            mark = "👉 " if is_active else "• "
+            active_tag = " [当前活跃]" if is_active else ""
+            plain_text += f"{mark}{idx}. 💬 {title}{active_tag}\n   📁 工作区: {c['workspace_path']}\n\n"
+        await update.message.reply_text(
+            plain_text,
+            reply_markup=get_conversations_keyboard(convs, active_id)
+        )
 
 
 async def handle_cmd_cd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -64,23 +64,24 @@ def get_model_keyboard(current_model: str, current_effort: str) -> InlineKeyboar
     """生成模型与思考推理深度切换键盘。
 
     Args:
-        current_model: 当前模型标识 ('auto', 'flash', 'pro')。
-        current_effort: 当前深度标识 ('low', 'medium', 'high', 'max')。
+        current_model: 当前模型标识。
+        current_effort: 当前深度标识。
 
     Returns:
         InlineKeyboardMarkup: 模型与 Effort 选择键盘。
     """
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(f"{'✅ ' if current_model == 'auto' else ''}Auto 默认", callback_data="model:auto"),
-            InlineKeyboardButton(f"{'✅ ' if current_model == 'flash' else ''}⚡ Flash", callback_data="model:flash"),
-            InlineKeyboardButton(f"{'✅ ' if current_model == 'pro' else ''}🧠 Pro", callback_data="model:pro"),
+            InlineKeyboardButton(f"{'✅ ' if current_model == 'auto' else ''}Auto (推荐)", callback_data="model:auto"),
+            InlineKeyboardButton(f"{'✅ ' if current_model == 'gemini-3.8-flash-high' else ''}⚡ Flash (高推)", callback_data="model:gemini-3.8-flash-high"),
         ],
         [
-            InlineKeyboardButton(f"{'✅ ' if current_effort == 'low' else ''}Low", callback_data="effort:low"),
-            InlineKeyboardButton(f"{'✅ ' if current_effort == 'medium' else ''}Med", callback_data="effort:medium"),
-            InlineKeyboardButton(f"{'✅ ' if current_effort == 'high' else ''}High", callback_data="effort:high"),
-            InlineKeyboardButton(f"{'✅ ' if current_effort == 'max' else ''}Max", callback_data="effort:max"),
+            InlineKeyboardButton(f"{'✅ ' if current_model == 'gemini-3.8-flash-medium' else ''}⚡ Flash (中推)", callback_data="model:gemini-3.8-flash-medium"),
+            InlineKeyboardButton(f"{'✅ ' if current_model == 'claude-sonnet-4-6' else ''}🧠 Claude Sonnet", callback_data="model:claude-sonnet-4-6"),
+        ],
+        [
+            InlineKeyboardButton(f"{'✅ ' if current_model == 'claude-opus-4-6-thinking' else ''}👑 Claude Opus", callback_data="model:claude-opus-4-6-thinking"),
+            InlineKeyboardButton(f"{'✅ ' if current_model == 'gpt-oss-120b-medium' else ''}🪐 GPT-OSS", callback_data="model:gpt-oss-120b-medium"),
         ]
     ])
 
@@ -114,11 +115,11 @@ def get_conversations_keyboard(convs: List[Dict[str, Any]], active_id: str) -> I
         InlineKeyboardMarkup: 包含每个会话切换入口的按键布局。
     """
     keyboard: List[List[InlineKeyboardButton]] = []
-    for c in convs:
+    for idx, c in enumerate(convs, 1):
         cid = c["conversation_id"]
-        title = c["title"] or f"会话 {cid[:8]}"
+        title = c["title"] or "未命名会话"
         is_active = (cid == active_id)
-        btn_label = f"{'✅ 当前: ' if is_active else '恢复: '}{title[:20]}"
+        btn_label = f"{'✅ 当前: ' if is_active else f'{idx}. '}{title[:22]}"
         keyboard.append([InlineKeyboardButton(btn_label, callback_data=f"conv_switch:{cid}")])
     return InlineKeyboardMarkup(keyboard)
 

@@ -119,16 +119,21 @@ class ThrottledRenderer:
             tools_block = "⚙️ **工具调用**:\n" + "\n".join(f"• `{t}`" for t in self.tool_calls[-4:])
             parts.append(tools_block)
 
-        if self.phase == "thinking" and not is_final:
+        if self.answer_buffer:
+            parts.append(self.answer_buffer)
+        elif self.phase == "thinking" and not is_final:
             lines = [l for l in self.thinking_buffer.strip().split("\n") if l.strip()]
             recent_thinking = "\n".join(lines[-4:]) if lines else "正在思考..."
             parts.append(f"💭 **思考中**:\n> {recent_thinking}")
         elif self.phase == "tools" and not is_final:
             parts.append("⏳ 正在处理中...")
-        elif self.answer_buffer:
-            parts.append(self.answer_buffer)
+        elif self.thinking_buffer and is_final:
+            # 终结帧若无正式正文但有思考/输出记录，展示记录避免死锁在“处理中”
+            parts.append(f"💭 **过程日志**:\n```\n{self.thinking_buffer[-1000:]}\n```")
         elif not is_final:
             parts.append("⏳ 正在初始化...")
+        else:
+            parts.append("⚠️ **任务已完成，未产生文本输出。**")
 
         content = "\n\n".join(parts)
         if len(content) > 3900:

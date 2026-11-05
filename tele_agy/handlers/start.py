@@ -27,6 +27,7 @@ async def handle_cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     welcome_text = (
         "🤖 **欢迎使用 tele-agy 远程控制网关！**\n\n"
+        f"👤 **你的 Telegram ID**: `{user_id}`\n"
         f"⚡ **系统状态**: {power_icon}\n"
         f"⚙️ **当前模式**: `{state['mode']}`\n"
         f"🧠 **当前模型**: `{state['model']}` (Effort: `{state['effort']}`)\n"

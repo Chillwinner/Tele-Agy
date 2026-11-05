@@ -58,17 +58,6 @@ async def handle_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     # 3. 获取或自动创建活跃会话
     active_id = state["active_conversation_id"]
     conv = get_conversation(active_id) if active_id else None
-    if not conv:
-        active_id = str(uuid.uuid4())
-        create_or_update_conversation(
-            active_id,
-            user_id,
-            config.DEFAULT_WORKSPACE,
-            title=user_text[:20]
-        )
-        update_user_state(user_id, active_conversation_id=active_id)
-        conv = get_conversation(active_id)
-
     workspace = conv["workspace_path"] if conv else config.DEFAULT_WORKSPACE
 
     # 4. 初始化 Telegram 初始消息与流式防抖渲染器
@@ -88,6 +77,16 @@ async def handle_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     active_drivers[user_id] = driver
 
     # 6. 定义事件回调
+    def on_init(cid: str) -> None:
+        if cid:
+            create_or_update_conversation(
+                cid,
+                user_id,
+                workspace,
+                title=user_text[:28]
+            )
+            update_user_state(user_id, active_conversation_id=cid)
+
     def on_thought(text: str) -> None:
         renderer.append_thought(text)
 
@@ -117,7 +116,8 @@ async def handle_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             on_thought=on_thought,
             on_tool_call=on_tool,
             on_text=on_text,
-            on_ask_question=on_ask
+            on_ask_question=on_ask,
+            on_init=on_init
         )
     except Exception as e:
         renderer.set_error(str(e))
